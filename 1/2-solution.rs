@@ -8,9 +8,8 @@ fn main() {
 	let offset = vals.len() / 2;
 
 	let ans = vals[..offset].iter().zip(vals[offset..].iter())
-		.fold(0, |acc, (a, b)| {
-			if a == b { a + b + acc } else { acc }
-		});
+		.filter(|&(a, b)| a == b)
+		.fold(0, |acc, (a, b)| acc + a + b);
 
 	println!("{}", ans);
 }
