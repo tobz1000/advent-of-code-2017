@@ -20,28 +20,51 @@
 // At this point, we've reached a state we've seen before: 2 4 1 2 was already seen. The infinite loop is detected after the fifth block redistribution cycle, and so the answer in this example is 5.
 
 // Given the initial block counts in your puzzle input, how many redistribution cycles must be completed before a configuration is produced that has been seen before?
-
-// Input:
-/*
-4	1	15	12	0	9	9	5	5	8	7	3	14	5	12	3
-*/
-
-use std::io::{self, Read};
 use std::cmp::{Ordering};
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::mem;
+
+pub fn part1(input: &str) -> String {
+    let arr: Vec<usize> = input.split_whitespace()
+        .map(|s| s.parse().unwrap())
+        .collect();
+
+    let ans = Blocks::new(arr).count();
+
+    ans.to_string()
+}
+
+// --- Part Two ---
+
+// Out of curiosity, the debugger would also like to know the size of the loop: starting from a state that has already been seen, how many block redistribution cycles must be performed before that same state is seen again?
+
+// In the example above, 2 4 1 2 is seen again after four cycles, and so the answer in that example would be 4.
+
+// How many cycles are in the infinite loop that arises from the configuration in your puzzle input?
+pub fn part2(input: &str) -> String {
+    let arr: Vec<usize> = input.split_whitespace()
+        .map(|s| s.parse().unwrap())
+        .collect();
+
+    let mut blocks = Blocks::new(arr);
+    let count = blocks.by_ref().count();
+    let repeated = blocks.current;
+    let ans = count - blocks.seen[&repeated];
+
+    ans.to_string()
+}
 
 #[derive(Debug)]
 struct Blocks {
     current: Vec<usize>,
-    seen: HashSet<Vec<usize>>
+    seen: HashMap<Vec<usize>, usize>
 }
 
 impl Blocks {
     fn new(first: Vec<usize>) -> Self {
         Self {
             current: first,
-            seen: HashSet::new()
+            seen: HashMap::new()
         }
     }
     fn redistribute(current: &Vec<usize>) -> Vec<usize> {
@@ -81,26 +104,14 @@ impl Iterator for Blocks {
     type Item = Vec<usize>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.seen.contains(&self.current) {
+        if self.seen.contains_key(&self.current) {
             None
         } else {
-            self.seen.insert(self.current.clone());
+            let len = self.seen.len();
+            self.seen.insert(self.current.clone(), len);
             let next = Blocks::redistribute(&mut self.current);
             let ret = mem::replace(&mut self.current, next);
             Some(ret)
         }
     }
-}
-
-fn main() {
-    let mut buffer = String::new();
-    io::stdin().read_to_string(&mut buffer).unwrap();
-
-    let arr: Vec<usize> = buffer.split_whitespace()
-        .map(|s| s.parse().unwrap())
-        .collect();
-
-    let ans = Blocks::new(arr).count();
-
-    println!("{}", ans);
 }
