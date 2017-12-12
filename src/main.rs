@@ -2,6 +2,9 @@
 #![feature(inclusive_range_syntax)]
 #![feature(range_contains)]
 
+#[macro_use]
+extern crate lazy_static;
+
 use std::env;
 use std::io::Read;
 use std::fs::File;
@@ -40,6 +43,7 @@ fn main() {
             (6, 1) => day6::part1,
             (6, 2) => day6::part2,
             (7, 1) => day7::part1,
+            (7, 2) => day7::part2,
             (_, _) => panic!()
         };
 

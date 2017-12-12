@@ -5,3 +5,5 @@ authors = ["Toby Dimmick <tobydimmick@protonmail.ch>"]
 
 [dependencies]
 regex = "*"
+lazy_static = "*"
+itertools = "*"
