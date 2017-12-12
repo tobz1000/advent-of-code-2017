@@ -25,6 +25,7 @@ extern crate regex;
 
 use std::collections::HashMap;
 use self::regex::Regex;
+use std::cmp::max;
 
 struct Counter {
     hash_map: HashMap<String, i32>
@@ -42,8 +43,9 @@ lazy_static! {
     ).unwrap();
 }
 
-pub fn part1(input: &str) -> String {
+fn solve(input: &str) -> (i32, i32) {
     let mut counter = Counter { hash_map: HashMap::new() };
+    let mut max_val = None;
 
     for instr in input.split('\n') {
         let caps = REG_PARSE_INSTR.captures(instr).unwrap();
@@ -72,10 +74,30 @@ pub fn part1(input: &str) -> String {
                 "dec" => *reg -= count,
                 _ => panic!()
             }
+
+            max_val = match max_val {
+                None => Some(*reg),
+                Some(max_val) => Some(max(max_val, *reg))
+            };
         }
     }
 
-    let ans = counter.hash_map.values().max().unwrap();
+    let &final_max = counter.hash_map.values().max().unwrap();
 
+    (final_max, max_val.unwrap())
+}
+
+pub fn part1(input: &str) -> String {
+    let (final_max, _max_val) = solve(input);
+    let ans = final_max;
+    ans.to_string()
+}
+
+// --- Part Two ---
+
+// To be safe, the CPU also needs to know the highest value held in any register during this process so that it can decide how much memory to allocate to these operations. For example, in the above instructions, the highest value ever held was 10 (in register c after the third instruction was evaluated).
+pub fn part2(input: &str) -> String {
+    let (_final_max, max_val) = solve(input);
+    let ans = max_val;
     ans.to_string()
 }
