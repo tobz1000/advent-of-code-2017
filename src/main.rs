@@ -53,6 +53,7 @@ fn main() {
             (9, 1) => day9::part1,
             (9, 2) => day9::part2,
             (10, 1) => day10::part1,
+            (10, 2) => day10::part2,
             (_, _) => panic!()
         };
 
