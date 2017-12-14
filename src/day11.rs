@@ -25,7 +25,7 @@
 //     ne,ne,s,s is 2 steps away (se,se).
 //     se,sw,se,sw,sw is 3 steps away (s,s,sw).
 use std::str::FromStr;
-use std::ops::{Add, Sub};
+use std::cmp::max;
 
 use self::DirRelation::*;
 
@@ -85,22 +85,6 @@ impl FromStr for Direction {
     }
 }
 
-// impl Add for Direction {
-//     type Output = i32;
-
-//     fn add(self, rhs: Self) -> Self::Output {
-//         (self.0 + rhs.0 + 6) % 6
-//     }
-// }
-
-// impl Sub for Direction {
-//     type Output = i32;
-
-//     fn sub(self, rhs: Self) -> Self::Output {
-//         Direction((self.0 - other.0 + 6) % 6)
-//     }
-// }
-
 #[derive(Debug)]
 enum HexStep {
     Neutral,
@@ -155,19 +139,37 @@ impl HexStep {
             HexStep::Offset { left_bearing: dir, left: 1, right: 0 }
         }
     }
+
+    fn distance(&self) -> i32 {
+            match *self {
+            HexStep::Neutral => 0,
+            HexStep::Offset { left, right, .. } => left + right
+        }
+    }
 }
 
-pub fn part1(input: &str) -> String {
+fn solve(input: &str) -> (i32, i32) {
     let mut position = HexStep::Neutral;
+    let mut max_distance = position.distance();
 
     for step in input.split(',') {
         position = position.step(step.parse().unwrap());
+        max_distance = max(max_distance, position.distance());
     }
 
-    let ans = match position {
-        HexStep::Neutral => 0,
-        HexStep::Offset{ left, right, .. } => left + right
-    };
+    (position.distance(), max_distance)
+}
 
-    ans.to_string()
+
+pub fn part1(input: &str) -> String {
+    let (final_dist, _max_dist) = solve(input);
+    final_dist.to_string()
+}
+
+// --- Part Two ---
+
+// How many steps away is the furthest he ever got from his starting position?
+pub fn part2(input: &str) -> String {
+    let (_final_dist, max_dist) = solve(input);
+    max_dist.to_string()
 }
