@@ -151,23 +151,21 @@ impl KnotHash {
 
         dense
     }
+}
 
-    fn checksum<T: Iterator<Item=u8>>(bytes: T) -> [u8; 16] {
-        let byte_vec = bytes.collect();
-        let mut state = KnotHash::new(byte_vec);
+pub fn knot_hash_checksum<T: Iterator<Item=u8>>(bytes: T) -> [u8; 16] {
+    let byte_vec = bytes.collect();
+    let mut state = KnotHash::new(byte_vec);
 
-        for _ in 0..64 {
-            state.round();
-        }
-
-        println!("{:?}", state);
-
-        state.dense_hash()
+    for _ in 0..64 {
+        state.round();
     }
+
+    state.dense_hash()
 }
 
 pub fn part2(input: &str) -> String {
-    let ans = KnotHash::checksum(input.as_bytes().iter().map(|&b| b));
+    let ans = knot_hash_checksum(input.as_bytes().iter().map(|&b| b));
 
     ans.iter().map(|&b| format!("{:x}", b)).join("")
 }
