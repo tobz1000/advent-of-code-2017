@@ -34,8 +34,8 @@
 // How many programs are in the group that contains program ID 0?
 extern crate regex;
 
-use self::regex::Regex;
 use std::collections::HashSet;
+use self::regex::Regex;
 
 lazy_static! {
     static ref REG_PARSE_CONNECTIONS: Regex = Regex::new(
@@ -45,8 +45,25 @@ lazy_static! {
 
 struct Networks(Vec<HashSet<u32>>);
 
-
 impl Networks {
+    fn from_input(input: &str) -> Self {
+        let mut networks = Networks(Vec::new());
+
+        for line in input.split('\n') {
+            let caps = REG_PARSE_CONNECTIONS.captures(line).unwrap();
+            let src = caps["src"].parse().unwrap();
+            let dests_str = caps["dests"].to_string();
+            let dests = dests_str.split(", ").map(|s| s.parse().unwrap());
+
+            let mut conns: HashSet<u32> = dests.collect();
+            conns.insert(src);
+
+            networks = networks.plus_conns(conns);
+        }
+
+        networks
+    }
+
     fn plus_conns(self, mut conns: HashSet<u32>) -> Self {
         let mut new = Vec::new();
 
@@ -65,24 +82,29 @@ impl Networks {
 }
 
 pub fn part1(input: &str) -> String {
-    let mut networks = Networks(Vec::new());
-
-    for line in input.split('\n') {
-        let caps = REG_PARSE_CONNECTIONS.captures(line).unwrap();
-        let src = caps["src"].parse().unwrap();
-        let dests_str = caps["dests"].to_string();
-        let dests = dests_str.split(", ").map(|s| s.parse().unwrap());
-
-        let mut conns: HashSet<u32> = dests.collect();
-        conns.insert(src);
-
-        networks = networks.plus_conns(conns);
-    }
+    let networks = Networks::from_input(input);
 
     let ans = networks.0.iter()
         .find(|&network| (*network).contains(&0))
         .unwrap()
         .len();
+
+    ans.to_string()
+}
+
+// --- Part Two ---
+
+// There are more programs than just the ones in the group containing program ID 0. The rest of them have no way of reaching that group, and still might have no way of reaching each other.
+
+// A group is a collection of programs that can all communicate via pipes either directly or indirectly. The programs you identified just a moment ago are all part of the same group. Now, they would like you to determine the total number of groups.
+
+// In the example above, there were 2 groups: one consisting of programs 0,2,3,4,5,6, and the other consisting solely of program 1.
+
+// How many groups are there in total?
+pub fn part2(input: &str) -> String {
+    let networks = Networks::from_input(input);
+
+    let ans = networks.0.len();
 
     ans.to_string()
 }

@@ -72,6 +72,7 @@ impl Direction {
 
 impl FromStr for Direction {
     type Err = String;
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "n" => Ok(NORTH),
