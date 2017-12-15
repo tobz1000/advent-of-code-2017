@@ -83,7 +83,7 @@ fn clear_adjacent(x: usize, y: usize, grid: &mut [[u8; 16]; 128]) -> bool {
 
     {
         let byte = &mut grid[y][x / 8];
-        let mask = 1 << (x % 8);
+        let mask = 1u8.rotate_right(x as u32 % 8);
 
         if *byte & mask != 0 {
             // Lower bit
