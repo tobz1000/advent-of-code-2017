@@ -155,19 +155,25 @@ impl Positions {
             },
             Exchange(n, m) => {
                 self.state.swap(n, m);
+            },
+            Partner(a, b) => {
+                let num_a = a as u8 - 'a' as u8;
+                let num_b = b as u8 - 'a' as u8;
+                let pos_a = self.state.iter().position(|&x| x == num_a).unwrap();
+                let pos_b = self.state.iter().position(|&x| x == num_b).unwrap();
+                self.state.swap(pos_a, pos_b);
             }
-            _ => panic!()
         }
     }
 
-    fn cycle(&self, pos: u8) -> Vec<u8> {
+    fn cycle(&self, pos: usize) -> Vec<u8> {
         let mut cycle = Vec::new();
-        let mut cycle_next = pos;
+        let mut cycle_next = pos as u8;
 
         loop {
             cycle.push(cycle_next);
             cycle_next = self.state[cycle_next as usize];
-            if cycle_next == pos {
+            if cycle_next == pos as u8 {
                 break;
             }
         }
@@ -176,8 +182,8 @@ impl Positions {
     }
 
     fn repeat_permutation(&self, count: usize) -> Self {
-        let state = self.state.iter().map(|&n| {
-            let cycle = self.cycle(n);
+        let state = (0..self.state.len()).map(|i| {
+            let cycle = self.cycle(i);
             cycle[count % cycle.len()]
         }).collect();
 
@@ -187,6 +193,7 @@ impl Positions {
 
 pub fn part2(input: &str) -> String {
     use self::Action::*;
+    let repeat_count = 1_000_000_000;
 
     let (positional_actions, value_actions): (Vec<Action>, Vec<Action>) = input.split(',')
         .map(|s| s.parse().unwrap())
@@ -196,18 +203,9 @@ pub fn part2(input: &str) -> String {
         });
 
     let positional_state = Positions::from_actions(positional_actions.into_iter())
-        .repeat_permutation(1_000_000_000);
-    let value_state = {
-        let converted_value_actions = value_actions.into_iter().map(|action| {
-            if let Partner(a, b) = action {
-                let a_pos = a as usize - 'a' as usize;
-                let b_pos = b as usize - 'a' as usize;
-                Exchange(a_pos as usize, b_pos as usize)
-            } else { panic!() }
-        });
-        Positions::from_actions(converted_value_actions)
-            .repeat_permutation(1_000_000_000)
-    };
+        .repeat_permutation(repeat_count);
+    let value_state = Positions::from_actions(value_actions.into_iter())
+        .repeat_permutation(repeat_count);
 
     let ans = positional_state.state.iter()
         .map(|&n| (value_state.state[n as usize] + 'a' as u8) as char)
