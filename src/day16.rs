@@ -111,3 +111,107 @@ pub fn part1(input: &str) -> String {
 
     programs.state.iter().collect()
 }
+
+// --- Part Two ---
+
+// Now that you're starting to get a feel for the dance moves, you turn your attention to the dance as a whole.
+
+// Keeping the positions they ended up in from their previous dance, the programs perform it again and again: including the first dance, a total of one billion (1000000000) times.
+
+// In the example above, their second dance would begin with the order baedc, and use the same dance moves:
+
+//     s1, a spin o size 1: cbaed.
+//     x3/4, swapping the last two programs: cbade.
+//     pe/b, swapping programs e and b: ceadb.
+
+// In what order are the programs standing after their billion dances?
+struct Positions {
+    state: VecDeque<u8>
+}
+
+impl Positions {
+    fn new() -> Self {
+        Positions { state: (0..16).collect() }
+    }
+
+    fn from_actions<I: Iterator<Item=Action>>(actions: I) -> Self {
+        let mut positions = Positions::new();
+
+        for action in actions {
+            positions.action(&action);
+        }
+
+        positions
+    } 
+
+    fn action(&mut self, action: &Action) {
+        use self::Action::*;
+        match *action {
+            Spin(x) => {
+                for _ in 0..x {
+                    let elm = self.state.pop_back().unwrap();
+                    self.state.push_front(elm);
+                }
+            },
+            Exchange(n, m) => {
+                self.state.swap(n, m);
+            }
+            _ => panic!()
+        }
+    }
+
+    fn cycle(&self, pos: u8) -> Vec<u8> {
+        let mut cycle = Vec::new();
+        let mut cycle_next = pos;
+
+        loop {
+            cycle.push(cycle_next);
+            cycle_next = self.state[cycle_next as usize];
+            if cycle_next == pos {
+                break;
+            }
+        }
+
+        cycle
+    }
+
+    fn repeat_permutation(&self, count: usize) -> Self {
+        let state = self.state.iter().map(|&n| {
+            let cycle = self.cycle(n);
+            cycle[count % cycle.len()]
+        }).collect();
+
+        Positions { state }
+    }
+}
+
+pub fn part2(input: &str) -> String {
+    use self::Action::*;
+
+    let (positional_actions, value_actions): (Vec<Action>, Vec<Action>) = input.split(',')
+        .map(|s| s.parse().unwrap())
+        .partition(|action| match *action {
+            Spin(..) | Exchange(..) => true,
+            Partner(..) => false
+        });
+
+    let positional_state = Positions::from_actions(positional_actions.into_iter())
+        .repeat_permutation(1_000_000_000);
+    let value_state = {
+        let converted_value_actions = value_actions.into_iter().map(|action| {
+            if let Partner(a, b) = action {
+                let a_pos = a as usize - 'a' as usize;
+                let b_pos = b as usize - 'a' as usize;
+                Exchange(a_pos as usize, b_pos as usize)
+            } else { panic!() }
+        });
+        Positions::from_actions(converted_value_actions)
+            .repeat_permutation(1_000_000_000)
+    };
+
+    let ans = positional_state.state.iter()
+        .map(|&n| (value_state.state[n as usize] + 'a' as u8) as char)
+        .collect();
+    
+    ans
+}
