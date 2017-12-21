@@ -40,7 +40,7 @@
 
 // What is the value of the recovered frequency (the value of the most recently played sound) the first time a rcv instruction is executed with a non-zero value?
 use std::collections::HashMap;
-use std::str::FromStr;
+use super::{Instruction, InstructionArg};
 
 struct Duet {
     instructions: Vec<Instruction>,
@@ -77,9 +77,9 @@ impl Duet {
                     self.last_recovered_tone = self.last_tone;
                 }
             }
-            Jgz(reg, arg) => {
-                if *self.index(reg) > 0 {
-                    next_jump = self.get(arg);
+            Jgz(check, jump) => {
+                if self.get(check) > 0 {
+                    next_jump = self.get(jump);
                 }
             }
         }
@@ -96,61 +96,6 @@ impl Duet {
             InstructionArg::Val(val) => val,
             InstructionArg::Reg(reg) => *self.index(reg)
         }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Instruction {
-    Snd(char),
-    Set(char, InstructionArg),
-    Add(char, InstructionArg),
-    Mul(char, InstructionArg),
-    Mod(char, InstructionArg),
-    Rcv(char),
-    Jgz(char, InstructionArg),
-}
-
-impl FromStr for Instruction {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use self::Instruction::*;
-
-        let mut toks = s.split_whitespace();
-        let instr = toks.next().unwrap();
-        let reg: char = toks.next().unwrap().parse().unwrap();
-        let arg = toks.next();
-
-        Ok(match (instr, reg, arg) {
-            ("snd", reg, None) => Snd(reg),
-            ("set", reg, Some(arg)) => Set(reg, arg.parse().unwrap()),
-            ("add", reg, Some(arg)) => Add(reg, arg.parse().unwrap()),
-            ("mul", reg, Some(arg)) => Mul(reg, arg.parse().unwrap()),
-            ("mod", reg, Some(arg)) => Mod(reg, arg.parse().unwrap()),
-            ("rcv", reg, None) => Rcv(reg),
-            ("jgz", reg, Some(arg)) => Jgz(reg, arg.parse().unwrap()),
-            (i, r, a) => panic!("Invalid instruction '{:?}'", (i, r, a))
-        })
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum InstructionArg {
-    Reg(char),
-    Val(isize),
-}
-
-impl FromStr for InstructionArg {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use self::InstructionArg::*;
-
-        Ok(match s.chars().next() {
-            Some(reg @ 'a'...'p') => Reg(reg),
-            Some('-') | Some('0'...'9') => Val(s.parse().unwrap()),
-            _ => panic!("Invalid instruction argument '{}'", s)
-        })
     }
 }
 
