@@ -2,6 +2,7 @@
 #![feature(inclusive_range_syntax)]
 #![feature(range_contains)]
 #![feature(slice_patterns)]
+#![feature(try_from)]
 
 #[macro_use]
 extern crate lazy_static;
@@ -28,6 +29,7 @@ mod day15;
 mod day16;
 mod day17;
 mod day18;
+mod day19;
 
 fn main() {
     let problems = env::args().skip(1).flat_map(|a| {
@@ -78,6 +80,7 @@ fn main() {
             (17, 2) => day17::part2,
             (18, 1) => day18::part1,
             (18, 2) => day18::part2,
+            (19, 1) => day19::part1,
             (_, _) => panic!()
         };
 
