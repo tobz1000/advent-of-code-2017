@@ -158,7 +158,7 @@ impl<'a> Map<'a> {
     }
 }
 
-pub fn part1(input: &str) -> String {
+fn solve(input: &str) -> (Vec<char>, i32) {
     let rows = || input.split('\n').map(|row| row.chars().map(|c| Tile::new(c)));
     let y = rows().count();
     let x = rows().next().unwrap().count();
@@ -167,12 +167,24 @@ pub fn part1(input: &str) -> String {
     let array = Array2::from_shape_vec((y, x), tiles).unwrap();
 
     let mut letters = Vec::new();
+    let mut steps = 1;
 
     let mut map = Map::new(&array);
 
     while let Some(next_map) = map.step(&mut letters) {
+        steps += 1;
         map = next_map;
     }
 
+    (letters, steps)
+}
+
+pub fn part1(input: &str) -> String {
+    let (letters, _steps) = solve(input);
     letters.into_iter().collect()
+}
+
+pub fn part2(input: &str) -> String {
+    let (_letters, steps) = solve(input);
+    steps.to_string()
 }
