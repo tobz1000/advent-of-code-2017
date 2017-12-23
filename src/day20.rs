@@ -34,6 +34,7 @@
 // Which particle will stay closest to position <0,0,0> in the long term?
 extern crate regex;
 
+use std::collections::HashMap;
 use std::ops::AddAssign;
 use std::error::Error;
 use std::str::FromStr;
@@ -49,7 +50,7 @@ lazy_static! {
     $").unwrap();
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct Vec3([i32; 3]);
 
 impl AddAssign for Vec3 {
@@ -133,3 +134,64 @@ pub fn part1(input: &str) -> String {
     closest_i.to_string()
 }
 
+// --- Part Two ---
+
+// To simplify the problem further, the GPU would like to remove any particles that collide. Particles collide if their positions ever exactly match. Because particles are updated simultaneously, more than two particles can collide at the same time and place. Once particles collide, they are removed and cannot collide with anything else after that tick.
+
+// For example:
+
+// p=<-6,0,0>, v=< 3,0,0>, a=< 0,0,0>    
+// p=<-4,0,0>, v=< 2,0,0>, a=< 0,0,0>    -6 -5 -4 -3 -2 -1  0  1  2  3
+// p=<-2,0,0>, v=< 1,0,0>, a=< 0,0,0>    (0)   (1)   (2)            (3)
+// p=< 3,0,0>, v=<-1,0,0>, a=< 0,0,0>
+
+// p=<-3,0,0>, v=< 3,0,0>, a=< 0,0,0>    
+// p=<-2,0,0>, v=< 2,0,0>, a=< 0,0,0>    -6 -5 -4 -3 -2 -1  0  1  2  3
+// p=<-1,0,0>, v=< 1,0,0>, a=< 0,0,0>             (0)(1)(2)      (3)   
+// p=< 2,0,0>, v=<-1,0,0>, a=< 0,0,0>
+
+// p=< 0,0,0>, v=< 3,0,0>, a=< 0,0,0>    
+// p=< 0,0,0>, v=< 2,0,0>, a=< 0,0,0>    -6 -5 -4 -3 -2 -1  0  1  2  3
+// p=< 0,0,0>, v=< 1,0,0>, a=< 0,0,0>                       X (3)      
+// p=< 1,0,0>, v=<-1,0,0>, a=< 0,0,0>
+
+// ------destroyed by collision------    
+// ------destroyed by collision------    -6 -5 -4 -3 -2 -1  0  1  2  3
+// ------destroyed by collision------                      (3)         
+// p=< 0,0,0>, v=<-1,0,0>, a=< 0,0,0>
+
+// In this example, particles 0, 1, and 2 are simultaneously destroyed at the time and place marked X. On the next tick, particle 3 passes through unharmed.
+
+// How many particles are left after all collisions are resolved?
+fn remove_dup_pos(points: Vec<Point>) -> Vec<Point> {
+    let mut lookup = HashMap::new();
+
+    for point in points {
+        lookup.entry(point.pos).or_insert(Vec::new()).push(point);
+    }
+
+    lookup.values_mut()
+        .filter(|points| points.len() == 1)
+        .map(|points| points.pop().unwrap())
+        .collect()
+}
+
+pub fn part2(input: &str) -> String {
+    let mut points = input.split('\n')
+        .map(|line| line.parse().unwrap())
+        .collect();
+
+    let ans = loop {
+        points = remove_dup_pos(points);
+
+        if points.iter().all(|point| point.diverging()) {
+            break points.len();
+        }
+
+        for point in points.iter_mut() {
+            point.step();
+        }
+    };
+
+    ans.to_string()
+}
