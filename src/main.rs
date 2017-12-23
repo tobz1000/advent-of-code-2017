@@ -30,6 +30,7 @@ mod day16;
 mod day17;
 mod day18;
 mod day19;
+mod day20;
 
 fn main() {
     let problems = env::args().skip(1).flat_map(|a| {
@@ -82,6 +83,7 @@ fn main() {
             (18, 2) => day18::part2,
             (19, 1) => day19::part1,
             (19, 2) => day19::part2,
+            (20, 1) => day20::part1,
             (_, _) => panic!()
         };
 
