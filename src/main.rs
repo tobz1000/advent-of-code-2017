@@ -7,6 +7,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[macro_use]
+extern crate arrayref;
+
 use std::env;
 use std::io::Read;
 use std::fs::File;
@@ -31,6 +34,7 @@ mod day17;
 mod day18;
 mod day19;
 mod day20;
+mod day21;
 
 fn main() {
     let problems = env::args().skip(1).flat_map(|a| {
@@ -85,6 +89,7 @@ fn main() {
             (19, 2) => day19::part2,
             (20, 1) => day20::part1,
             (20, 2) => day20::part2,
+            (21, 1) => day21::part1,
             (_, _) => panic!()
         };
 
