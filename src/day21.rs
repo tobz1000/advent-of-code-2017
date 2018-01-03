@@ -85,67 +85,101 @@
 // Thus, after 2 iterations, the grid contains 12 pixels that are on.
 
 // How many pixels stay on after 5 iterations?
+extern crate ndarray;
+extern crate itertools;
+
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::fmt;
+use self::itertools::Itertools;
 
+#[derive(Clone)]
 struct Image {
-    tiles: Vec<Tile>,
-    transforms: HashMap<Tile, Tile>
+    squares: Vec<bool>,
+    size: usize
 }
 
 impl Image {
-    fn new(initial_tile: &str, rules: &str) -> Self {
-        Image {
-            tiles: vec![initial_tile.parse().unwrap()],
-            transforms: Image::parse_transforms(rules)
-        }
-    }
+    fn from_tiles(tiles: Vec<Tile>) -> Self {
+        let mut squares = Vec::new();
+        let tile_size = tiles[0].size();
+        let tile_row_len = (tiles.len() as f64).sqrt() as usize;
 
-    fn transform(tile: Tile, transforms: &HashMap<Tile, Tile>) -> Vec<Tile> {
-        use self::Tile::*;
+        for tile_row in tiles.chunks(tile_row_len) {
+            let mut square_row_iters: Vec<_> = tile_row.iter()
+                .map(|tile| tile.rows())
+                .collect();
 
-        match tile {
-            Size2(_) | Size3(_) => vec![transforms[&tile]],
-            Size4(v) => {
-                [
-                    Size2([v[0], v[1], v[4], v[5]]),
-                    Size2([v[2], v[3], v[6], v[7]]),
-                    Size2([v[8], v[9], v[12], v[13]]),
-                    Size2([v[10], v[11], v[14], v[15]]),
-                ].into_iter().map(|tile| transforms[tile]).collect()
-            }
-        }
-    }
-
-    fn parse_transforms(rules: &str) -> HashMap<Tile, Tile> {
-        let mut transforms = HashMap::new();
-
-        for line in rules.split('\n') {
-            let mut parts = line.split(" => ");
-            let from_tile: Tile = parts.next().unwrap().parse().unwrap();
-            let to_tile: Tile = parts.next().unwrap().parse().unwrap();
-
-            for from_variation in from_tile.variations() {
-                transforms.insert(from_variation, to_tile);
+            'outer: loop {
+                for mut row_iter in square_row_iters.iter_mut() {
+                    if let Some(tile_square_row) = row_iter.next() {
+                        squares.extend_from_slice(tile_square_row);
+                    } else {
+                        break 'outer;
+                    }
+                }
             }
         }
 
-        transforms
+        Image { squares, size: tile_row_len * tile_size }
     }
 
-    fn enhance(self) -> Self {
-        let Image { tiles, transforms } = self;
-        Image {
-            tiles: tiles.into_iter()
-                .flat_map(|tile| Image::transform(tile, &transforms))
-                .collect(),
-            transforms
+    fn to_tiles(self) -> impl Iterator<Item=Tile> {
+        let &tile_size = [2,3].into_iter()
+            .find(|&l| self.size % l == 0)
+            .unwrap();
+
+        let tile_count = self.squares.len() / (tile_size * tile_size);
+
+        (0..tile_count).map(move |i| {
+            let mut tile = match tile_size {
+                2 => Tile::Size2([false; 4]),
+                3 => Tile::Size3([false; 9]),
+                _ => panic!()
+            };
+
+            let mut tile_square_ind = 0;
+
+            let tile_offs = {
+                let x_offs = (i * tile_size) % self.size;
+                let y_offs = ((i * tile_size) / self.size) * tile_size;
+
+                x_offs + (y_offs * self.size)
+            };
+
+            for j in 0..tile_size {
+                let row_offs = tile_offs + (j * self.size);
+
+                for k in 0..tile_size {
+                    tile.vals_mut()[tile_square_ind] = self.squares[row_offs + k];
+                    tile_square_ind += 1;
+                }
+            }
+
+            tile
+        })
+    }
+
+    fn enhance(self, transforms: &HashMap<Tile, Tile>) -> Self {
+        let tiles = self.to_tiles().flat_map(|tile| tile.transform(transforms));
+        Image::from_tiles(tiles.collect())
+    }
+
+    fn count_ones(self) -> u32 {
+        self.squares.iter().map(|&v| if v { 1 } else { 0 }).sum()
+    }
+}
+
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Image size {}", self.size)?;
+
+        for row in &self.squares.iter().chunks(self.size) {
+            let row_repr: String = row.map(|&s| if s { '#' } else { '.' }).collect();
+            writeln!(f, "{}", row_repr)?;
         }
-    }
 
-    fn count_ones(&self) -> u32 {
-        self.tiles.iter().map(|tile| tile.count_ones()).sum()
+        Ok(())
     }
 }
 
@@ -176,6 +210,30 @@ impl Tile {
             Size3(ref vals) => vals,
             Size4(ref vals) => vals,
         }
+    }
+
+    fn vals_mut(&mut self) -> &mut [bool] {
+        use self::Tile::*;
+
+        match *self {
+            Size2(ref mut vals) => vals,
+            Size3(ref mut vals) => vals,
+            Size4(ref mut vals) => vals,
+        }
+    }
+
+    fn size(&self) -> usize {
+        match *self {
+            Tile::Size2(_) => 2,
+            Tile::Size3(_) => 3,
+            Tile::Size4(_) => 4,
+        }
+    }
+
+    fn rows(&self) -> impl Iterator<Item=&[bool]> {
+        let size = self.size();
+
+        (0..size).map(move |i| &self.vals()[(i * size)..((i + 1) * size)])
     }
 
     fn flip_v(self) -> Self {
@@ -257,8 +315,20 @@ impl Tile {
         variations
     }
 
-    fn count_ones(self) -> u32 {
-        self.vals().iter().map(|&v| if v { 1 } else { 0 }).sum()
+    fn transform(self, transforms: &HashMap<Tile, Tile>) -> Vec<Tile> {
+        use self::Tile::*;
+
+        match self {
+            Size2(_) | Size3(_) => vec![transforms[&self]],
+            Size4(v) => {
+                [
+                    Size2([v[0], v[1], v[4], v[5]]),
+                    Size2([v[2], v[3], v[6], v[7]]),
+                    Size2([v[8], v[9], v[12], v[13]]),
+                    Size2([v[10], v[11], v[14], v[15]]),
+                ].into_iter().map(|tile| transforms[tile]).collect()
+            }
+        }
     }
 }
 
@@ -280,19 +350,37 @@ impl FromStr for Tile {
 
 impl fmt::Debug for Tile {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let repr: String = self.vals().iter()
-            .map(|&v| if v { '#' } else { '.' })
-            .collect();
+        let repr = self.rows().map(|row| {
+            row.iter().map(|&v| if v { '#' } else { '.' }).collect::<String>()
+        }).join("/");
 
         write!(f, "{}", repr)
     }
 }
 
+fn parse_transforms(rules: &str) -> HashMap<Tile, Tile> {
+    let mut transforms = HashMap::new();
+
+    for line in rules.split('\n') {
+        let mut parts = line.split(" => ");
+        let from_tile: Tile = parts.next().unwrap().parse().unwrap();
+        let to_tile: Tile = parts.next().unwrap().parse().unwrap();
+
+        for from_variation in from_tile.variations() {
+            transforms.insert(from_variation, to_tile);
+        }
+    }
+
+    transforms
+}
+
+
 pub fn part1(input: &str) -> String {
-    let mut image = Image::new(".#./..#/###", input);
+    let mut image = Image::from_tiles(vec![".#./..#/###".parse().unwrap()]);
+    let transforms = parse_transforms(input);
 
     for _ in 0..5 {
-        image = image.enhance();
+        image = image.enhance(&transforms);
     }
 
     let ans = image.count_ones();

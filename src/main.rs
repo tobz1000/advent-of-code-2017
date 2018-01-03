@@ -3,12 +3,10 @@
 #![feature(range_contains)]
 #![feature(slice_patterns)]
 #![feature(try_from)]
+#![feature(conservative_impl_trait)]
 
-#[macro_use]
-extern crate lazy_static;
-
-#[macro_use]
-extern crate arrayref;
+#[macro_use] extern crate lazy_static;
+#[macro_use] extern crate arrayref;
 
 use std::env;
 use std::io::Read;
