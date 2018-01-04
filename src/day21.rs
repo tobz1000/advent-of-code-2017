@@ -374,16 +374,26 @@ fn parse_transforms(rules: &str) -> HashMap<Tile, Tile> {
     transforms
 }
 
-
-pub fn part1(input: &str) -> String {
+fn solve(input: &str, iterations: u32) -> String {
     let mut image = Image::from_tiles(vec![".#./..#/###".parse().unwrap()]);
     let transforms = parse_transforms(input);
 
-    for _ in 0..5 {
+    for _ in 0..iterations {
         image = image.enhance(&transforms);
     }
 
     let ans = image.count_ones();
 
     ans.to_string()
+}
+
+pub fn part1(input: &str) -> String {
+    solve(input, 5)
+}
+
+// --- Part Two ---
+
+// How many pixels stay on after 18 iterations?
+pub fn part2(input: &str) -> String {
+    solve(input, 18)
 }
