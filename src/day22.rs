@@ -197,7 +197,7 @@ struct Virus {
     pos: (i32, i32),
     vel: (i32, i32),
     infection_count: u32,
-    node_transitions: HashMap<NodeState, NodeState>,
+    node_transitions: Vec<NodeState>,
 }
 
 impl Virus {
@@ -216,21 +216,21 @@ impl Virus {
         self.vel = (-x, -y);
     }
 
-    fn burst(&mut self, map: &mut HashMap<(i32, i32), NodeState>) {
+    fn burst(&mut self, map: &mut HashMap<(i32, i32), usize>) {
         use self::NodeState::*;
 
-        let node_state = map.entry(self.pos).or_insert(Clean);
+        let node_stage = map.entry(self.pos).or_insert(0);
 
-        match *node_state {
+        match self.node_transitions[*node_stage] {
             Clean => { self.turn_left(); },
             Weakened => {},
             Infected => { self.turn_right(); },
             Flagged => { self.reverse(); },
         }
 
-        *node_state = self.node_transitions[node_state];
+        *node_stage = (*node_stage + 1) % self.node_transitions.len();
 
-        if *node_state == Infected {
+        if self.node_transitions[*node_stage] == Infected {
             self.infection_count += 1;
         }
 
@@ -241,7 +241,7 @@ impl Virus {
 
 fn solve(
     input: &str,
-    node_transitions: HashMap<NodeState, NodeState>,
+    node_transitions: Vec<NodeState>,
     burst_count: u32
 ) -> String {
     use self::NodeState::*;
@@ -250,17 +250,24 @@ fn solve(
     let y_max = input.split('\n').count();
     let pos = (x_max as i32 / 2, y_max as i32 / 2);
 
-    let mut map: HashMap<(i32, i32), NodeState> = input.split('\n')
+    let _state_stages: HashMap<NodeState, usize> = node_transitions.iter()
+        .enumerate()
+        .map(|(i, &state)| (state, i))
+        .collect();
+    
+    let state_stages = &_state_stages;
+
+    let mut map: HashMap<(i32, i32), usize> = input.split('\n')
         .enumerate()
         .flat_map(|(y, line)| {
             line.chars().enumerate().map(move |(x, c)| {
-                let infected = match c {
-                    '.' => Clean,
-                    '#' => Infected,
+                let stage = match c {
+                    '.' => state_stages[&Clean],
+                    '#' => state_stages[&Infected],
                     _ => panic!()
                 };
 
-                ((x as i32, (y_max - 1 - y) as i32), infected)
+                ((x as i32, (y_max - 1 - y) as i32), stage)
             })
         })
         .collect();
@@ -282,19 +289,16 @@ fn solve(
 pub fn part1(input: &str) -> String {
     use self::NodeState::*;
 
-    solve(input, hashmap! {
-        Clean => Infected,
-        Infected => Clean,
-    }, 10_000)
+    solve(input, vec![Clean, Infected], 10_000)
 }
 
 pub fn part2(input: &str) -> String {
     use self::NodeState::*;
 
-    solve(input, hashmap! {
-        Clean => Weakened,
-        Weakened => Infected,
-        Infected => Flagged,
-        Flagged => Clean
-    }, 10_000_000)
+    solve(input, vec![
+        Clean,
+        Weakened,
+        Infected,
+        Flagged
+    ], 10_000_000)
 }
