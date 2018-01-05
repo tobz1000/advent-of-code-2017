@@ -189,13 +189,77 @@
 
 // Given your actual map, after 10000000 bursts of activity, how many bursts cause a node to become infected? (Do not count nodes that begin infected.)
 use std::collections::HashMap;
+use std::mem;
 
 #[derive(PartialEq, Eq, Hash, Clone, Copy)]
 enum NodeState { Clean, Weakened, Infected, Flagged }
 
+const MAP_GROW: usize = 2;
+
+struct Map {
+    size: usize,
+    node_stages: Box<[usize]>
+}
+
+impl Map {
+    fn new(size: usize) -> Self {
+        Map {
+            size,
+            node_stages: vec![0; size * size].into_boxed_slice()
+        }
+    }
+
+    fn node_stage(&mut self, coords: (isize, isize)) -> &mut usize {
+        let (x, y) = coords;
+        let (_x, _y) = self.offset();
+        let index = Map::index((x + _x, y + _y), self.size);
+
+        while index >= self.node_stages.len() {
+            self.grow();
+        }
+
+        &mut self.node_stages[index]
+    }
+
+    fn index(coords: (isize, isize), size: usize) -> usize {
+        let (x, y) = coords;
+        y as usize * size + x as usize
+    }
+
+    fn offset(&self) -> (isize, isize) {
+        (self.size as isize / 2, self.size as isize / 2)
+    }
+
+    fn grow(&mut self) {
+        let old_offset = self.offset();
+        let old_len = self.node_stages.len();
+        let new_len = old_len * MAP_GROW * MAP_GROW;
+        println!("Grow {}", new_len);
+        let old_size = self.size;
+        let new_size = old_size * MAP_GROW;
+        let new_backing = vec![0; new_len].into_boxed_slice();
+        let old_backing = mem::replace(&mut self.node_stages, new_backing);
+        let copy_start = {
+            let new_offset = self.offset();
+            Map::index((new_offset.0 - old_offset.0, new_offset.1 - old_offset.1), old_size)
+        };
+
+        for i in 0..old_size {
+            let old_row_start = old_size * i;
+            let old_slice = &old_backing[old_row_start..old_row_start + old_size];
+            let new_row_start = copy_start + i * new_size;
+            let mut new_slice = &mut self.node_stages[new_row_start..new_row_start + old_size];
+
+            new_slice.copy_from_slice(old_slice);
+        }
+        
+        self.size *= MAP_GROW;
+    }
+}
+
 struct Virus {
-    pos: (i32, i32),
-    vel: (i32, i32),
+    pos: (isize, isize),
+    vel: (isize, isize),
     infection_count: u32,
     node_transitions: Vec<NodeState>,
 }
@@ -216,10 +280,10 @@ impl Virus {
         self.vel = (-x, -y);
     }
 
-    fn burst(&mut self, map: &mut HashMap<(i32, i32), usize>) {
+    fn burst(&mut self, map: &mut Map) {
         use self::NodeState::*;
 
-        let node_stage = map.entry(self.pos).or_insert(0);
+        let node_stage = map.node_stage(self.pos);
 
         match self.node_transitions[*node_stage] {
             Clean => { self.turn_left(); },
@@ -248,7 +312,7 @@ fn solve(
 
     let x_max = input.split('\n').next().unwrap().len();
     let y_max = input.split('\n').count();
-    let pos = (x_max as i32 / 2, y_max as i32 / 2);
+    let pos = (x_max as isize / 2, y_max as isize / 2);
 
     let _state_stages: HashMap<NodeState, usize> = node_transitions.iter()
         .enumerate()
@@ -257,7 +321,7 @@ fn solve(
     
     let state_stages = &_state_stages;
 
-    let mut map: HashMap<(i32, i32), usize> = input.split('\n')
+    let map_start = input.split('\n')
         .enumerate()
         .flat_map(|(y, line)| {
             line.chars().enumerate().map(move |(x, c)| {
@@ -267,10 +331,15 @@ fn solve(
                     _ => panic!()
                 };
 
-                ((x as i32, (y_max - 1 - y) as i32), stage)
+                ((x as isize, (y_max - 1 - y) as isize), stage)
             })
-        })
-        .collect();
+        });
+
+    let mut map = Map::new(16);
+
+    for (coords, stage) in map_start {
+        *map.node_stage(coords) = stage;
+    }
 
     let mut virus = Virus {
         pos,
