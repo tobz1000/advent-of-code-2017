@@ -196,64 +196,88 @@ enum NodeState { Clean, Weakened, Infected, Flagged }
 
 const MAP_GROW: usize = 2;
 
-struct Map {
+struct Map(Option<_Map>);
+
+impl Map {
+    fn new(size: usize) -> Self {
+        Map(Some(_Map::new(size)))
+    }
+
+    fn node_stage(&mut self, coords: (isize, isize)) -> &mut usize {
+        let map = self.0.take().unwrap();
+        let (map, index) = map.node_stage_index(coords);
+        self.0 = Some(map);
+
+        &mut self.0.as_mut().unwrap().node_stages[index]
+    }
+}
+
+struct _Map {
     size: usize,
     node_stages: Box<[usize]>
 }
 
-impl Map {
+impl _Map {
     fn new(size: usize) -> Self {
-        Map {
+        _Map {
             size,
             node_stages: vec![0; size * size].into_boxed_slice()
         }
     }
 
-    fn node_stage(&mut self, coords: (isize, isize)) -> &mut usize {
+    fn node_stage_index(mut self, coords: (isize, isize)) -> (Self, usize) {
         let (x, y) = coords;
-        let (_x, _y) = self.offset();
-        let index = Map::index((x + _x, y + _y), self.size);
 
-        while index >= self.node_stages.len() {
-            self.grow();
-        }
+        let index = loop {
+            // println!("node_stage {:?}", (self.offset(), coords));
+            let (_x, _y) = self.offset();
+            let index = _Map::index((x + _x, y + _y), self.size);
 
-        &mut self.node_stages[index]
+            if (0..self.node_stages.len() as isize).contains(index) {
+                break index
+            }
+
+            self = self.grow();
+        };
+
+        (self, index as usize)
     }
 
-    fn index(coords: (isize, isize), size: usize) -> usize {
+    fn index(coords: (isize, isize), size: usize) -> isize {
+        // println!("index {:?}", (coords, size));
         let (x, y) = coords;
-        y as usize * size + x as usize
+        y * size as isize + x
+    }
+
+    fn _offset(size: usize) -> (isize, isize) {
+        (size as isize / 2, size as isize / 2)
     }
 
     fn offset(&self) -> (isize, isize) {
-        (self.size as isize / 2, self.size as isize / 2)
+        _Map::_offset(self.size)
     }
 
-    fn grow(&mut self) {
-        let old_offset = self.offset();
-        let old_len = self.node_stages.len();
-        let new_len = old_len * MAP_GROW * MAP_GROW;
-        println!("Grow {}", new_len);
-        let old_size = self.size;
-        let new_size = old_size * MAP_GROW;
-        let new_backing = vec![0; new_len].into_boxed_slice();
-        let old_backing = mem::replace(&mut self.node_stages, new_backing);
-        let copy_start = {
-            let new_offset = self.offset();
-            Map::index((new_offset.0 - old_offset.0, new_offset.1 - old_offset.1), old_size)
-        };
+    fn copy_node_stages(
+        from: &[usize],
+        to: &mut [usize],
+        old_size: usize,
+        new_size: usize
+    ) {
+        /* Not implemented */
+    }
 
-        for i in 0..old_size {
-            let old_row_start = old_size * i;
-            let old_slice = &old_backing[old_row_start..old_row_start + old_size];
-            let new_row_start = copy_start + i * new_size;
-            let mut new_slice = &mut self.node_stages[new_row_start..new_row_start + old_size];
+    fn grow(self) -> Self {
+        let _Map {
+            size: old_size,
+            node_stages: old_node_stages
+        } = self;
 
-            new_slice.copy_from_slice(old_slice);
-        }
-        
-        self.size *= MAP_GROW;
+        let size = old_size * MAP_GROW;
+        let mut node_stages = vec![0; size * size].into_boxed_slice();
+
+        _Map::copy_node_stages(&old_node_stages, &mut node_stages, old_size, size);
+
+        _Map { size, node_stages }
     }
 }
 
