@@ -190,8 +190,7 @@
 // Given your actual map, after 10000000 bursts of activity, how many bursts cause a node to become infected? (Do not count nodes that begin infected.)
 extern crate itertools;
 
-use std::collections::HashMap;
-use std::mem;
+use std::collections::{HashMap,HashSet};
 use std::fmt;
 use self::itertools::Itertools;
 
@@ -200,14 +199,19 @@ enum NodeState { Clean, Weakened, Infected, Flagged }
 
 const MAP_GROW: usize = 2;
 
-struct Map {
+trait Map {
+    fn node_stage(&mut self, coords:(isize, isize)) -> &mut usize;
+    fn unclean_nodes(&self) -> HashMap<usize, HashSet<(isize, isize)>>;
+}
+
+struct AllocMap {
     size: usize,
     node_stages: Box<[usize]>
 }
 
-impl Map {
+impl AllocMap {
     fn new(size: usize) -> Self {
-        Map {
+        Self {
             size,
             node_stages: vec![0; size * size].into_boxed_slice()
         }
@@ -217,11 +221,9 @@ impl Map {
         let (x, y) = coords;
 
         let index = loop {
-            // println!("node_stage {:?}", (self.offset(), coords));
             let (_x, _y) = self.offset();
-            let index = Map::index((x + _x, y + _y), self.size);
 
-            if (0..self.node_stages.len() as isize).contains(index) {
+            if let Some(index) = Self::index((x + _x, y + _y), self.size) {
                 break index
             }
 
@@ -231,10 +233,20 @@ impl Map {
         &mut self.node_stages[index as usize]
     }
 
-    fn index(coords: (isize, isize), size: usize) -> isize {
-        // println!("index {:?}", (coords, size));
+    fn index(coords: (isize, isize), size: usize) -> Option<usize> {
         let (x, y) = coords;
-        y * size as isize + x
+
+        if !(0..size as isize).contains(x) || !(0..size as isize).contains(y) {
+            return None;
+        }
+
+        let index = y * size as isize + x;
+
+        if (0..size * size).contains(index as usize) {
+            Some(index as usize)
+        } else {
+            None
+        }
     }
 
     fn _offset(size: usize) -> (isize, isize) {
@@ -242,16 +254,16 @@ impl Map {
     }
 
     fn offset(&self) -> (isize, isize) {
-        Map::_offset(self.size)
+        Self::_offset(self.size)
     }
 
-    fn copy_node_stages(from: &Map, to: &mut Map) {
+    fn copy_node_stages(from: &Self, to: &mut Self) {
         let copy_start_offs = {
             let from_offs = from.offset();
             let to_offs = to.offset();
             (to_offs.0 - from_offs.0, to_offs.1 - from_offs.1)
         };
-        let copy_start_ind = Map::index(copy_start_offs, to.size) as usize;
+        let copy_start_ind = Self::index(copy_start_offs, to.size).unwrap();
 
         for i in 0..from.size {
             let from_row = {
@@ -269,18 +281,44 @@ impl Map {
 
     fn grow(&self) -> Self {
         let size = self.size * MAP_GROW;
-        let node_stages = vec![0; size * size].into_boxed_slice();
-        let mut new = Map { size, node_stages };
+        let mut new = Self::new(size);
 
-        Map::copy_node_stages(&self, &mut new);
-
-        // println!("{:?}", new);
+        Self::copy_node_stages(&self, &mut new);
 
         new
     }
 }
 
-impl fmt::Debug for Map {
+impl Map for AllocMap {
+    fn node_stage(&mut self, coords: (isize, isize)) -> &mut usize {
+        Self::node_stage(self, coords)
+    }
+
+    fn unclean_nodes(&self) -> HashMap<usize, HashSet<(isize, isize)>> {
+        let unclean_nodes = self.node_stages.iter()
+            .enumerate()
+            .filter(|&(_i, &stage)| stage != 0)
+            .map(|(i, &stage)| -> (usize, (isize, isize)) {
+                let x = i % self.size;
+                let y = i / self.size;
+                let (_x, _y) = self.offset();
+                (stage, (x as isize - _x, y as isize - _y))
+            });
+
+        let mut ret = HashMap::new();
+        
+
+        for (stage, coords) in unclean_nodes {
+            let entry = ret.entry(stage).or_insert(HashSet::new());
+
+            entry.insert(coords);
+        }
+
+        ret
+    }
+}
+
+impl fmt::Debug for AllocMap {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let counts = {
             let mut counts_map: HashMap<usize, usize> = HashMap::new();
@@ -306,6 +344,27 @@ impl fmt::Debug for Map {
         }
 
         Ok(())
+    }
+}
+
+impl Map for HashMap<(isize, isize), usize> {
+    fn node_stage(&mut self, coords: (isize, isize)) -> &mut usize {
+        self.entry(coords).or_insert(0)
+    }
+
+    fn unclean_nodes(&self) -> HashMap<usize, HashSet<(isize, isize)>> {
+        let unclean_nodes = self.iter()
+            .filter(|&(_coords, &stage)| stage != 0);
+            
+
+        let mut ret = HashMap::new();
+
+        for (&coords, &stage) in unclean_nodes {
+            let entry = ret.entry(stage).or_insert(HashSet::new());
+            entry.insert(coords);
+        }
+
+        ret
     }
 }
 
@@ -358,14 +417,16 @@ impl Virus {
 
 fn solve(
     input: &str,
+    map: &mut Map,
     node_transitions: Vec<NodeState>,
     burst_count: u32
 ) -> u32 {
     use self::NodeState::*;
 
-    let x_max = input.split('\n').next().unwrap().len();
-    let y_max = input.split('\n').count();
-    let pos = (x_max as isize / 2, y_max as isize / 2);
+    let x_max = input.split('\n').next().unwrap().len() as isize;
+    let y_max = input.split('\n').count() as isize;
+    let x_offs = x_max / 2;
+    let y_offs = y_max / 2;
 
     let _state_stages: HashMap<NodeState, usize> = node_transitions.iter()
         .enumerate()
@@ -384,44 +445,52 @@ fn solve(
                     _ => panic!()
                 };
 
-                ((x as isize, (y_max - 1 - y) as isize), stage)
+                let x_adjusted = x as isize - x_offs;
+                // Invert y-coordinate since we read top-to-bottom
+                let y_adjusted = y_max - 1 - y as isize - y_offs;
+
+                ((x_adjusted, y_adjusted), stage)
             })
         });
 
-    let mut map = Map::new(1);
-
     for (coords, stage) in map_start {
         *map.node_stage(coords) = stage;
-        // println!("{:?}", (coords, stage));
-        // println!("{:?}", map);
     }
 
     let mut virus = Virus {
-        pos,
+        pos: (0, 0),
         vel: (0, 1),
         infection_count: 0,
         node_transitions
     };
 
     for _ in 0..burst_count {
-        virus.burst(&mut map);
-        // println!("{:?}", virus);
-        // println!("{:?}", map);
+        virus.burst(map);
     }
 
     virus.infection_count
 }
 
+fn solve_alloc_map(
+    input: &str,
+    node_transitions: Vec<NodeState>,
+    burst_count: u32
+) -> u32 {
+    let mut map = AllocMap::new(1);
+
+    solve(input, &mut map, node_transitions, burst_count)
+}
+
 pub fn part1(input: &str) -> String {
     use self::NodeState::*;
 
-    solve(input, vec![Clean, Infected], 10_000).to_string()
+    solve_alloc_map(input, vec![Clean, Infected], 10_000).to_string()
 }
 
 pub fn part2(input: &str) -> String {
     use self::NodeState::*;
 
-    solve(input, vec![
+    solve_alloc_map(input, vec![
         Clean,
         Weakened,
         Infected,
@@ -430,7 +499,48 @@ pub fn part2(input: &str) -> String {
 }
 
 #[test]
-fn test_day22() {
+fn test_compare_maps() {
+    fn solve_hash_map(
+        input: &str,
+        node_transitions: Vec<NodeState>,
+        burst_count: u32
+    ) -> u32 {
+        let mut map = HashMap::new();
+
+        solve(input, &mut map, node_transitions, burst_count)
+    }
+
+    use self::NodeState::*;
+
+    let part1_transitions = || vec![Clean, Infected];
+
+    let test_input ="..#
+#..
+...";
+
+    for i in 0..1200 {
+        let mut hash_map = HashMap::new();
+        let mut alloc_map = AllocMap::new(1);
+
+        solve(test_input, &mut hash_map, part1_transitions(), i);
+        solve(test_input, &mut alloc_map, part1_transitions(), i);
+
+        let hu = hash_map.unclean_nodes();
+        let au = alloc_map.unclean_nodes();
+
+        assert_eq!(
+            hash_map.unclean_nodes(),
+            alloc_map.unclean_nodes(),
+            "i == {}\nin hash: {:?}\nin alloc: {:?}",
+            i,
+            &hu[&1] - &au[&1],
+            &au[&1] - &hu[&1],
+        );
+    }
+}
+
+#[test]
+fn test_sample_input() {
     use self::NodeState::*;
 
     let part1_transitions = || vec![Clean, Infected];
@@ -439,9 +549,10 @@ fn test_day22() {
     let test_input ="..#
 #..
 ...";
-    assert_eq!(solve(test_input, part1_transitions(), 7), 5);
-    assert_eq!(solve(test_input, part1_transitions(), 70), 41);
-    assert_eq!(solve(test_input, part1_transitions(), 10000), 5587);
-    assert_eq!(solve(test_input, part2_transitions(), 100), 26);
-    assert_eq!(solve(test_input, part2_transitions(), 10000000), 2511944);
+
+    assert_eq!(solve_alloc_map(test_input, part1_transitions(), 7), 5);
+    assert_eq!(solve_alloc_map(test_input, part1_transitions(), 70), 41);
+    assert_eq!(solve_alloc_map(test_input, part1_transitions(), 10000), 5587);
+    assert_eq!(solve_alloc_map(test_input, part2_transitions(), 100), 26);
+    assert_eq!(solve_alloc_map(test_input, part2_transitions(), 10000000), 2511944);
 }
