@@ -188,10 +188,14 @@
 // Of the first 100 bursts, 26 will result in infection. Unfortunately, another feature of this evolved virus is speed; of the first 10000000 bursts, 2511944 will result in infection.
 
 // Given your actual map, after 10000000 bursts of activity, how many bursts cause a node to become infected? (Do not count nodes that begin infected.)
+extern crate itertools;
+
 use std::collections::HashMap;
 use std::mem;
+use std::fmt;
+use self::itertools::Itertools;
 
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy)]
 enum NodeState { Clean, Weakened, Infected, Flagged }
 
 const MAP_GROW: usize = 2;
@@ -225,7 +229,6 @@ impl Map {
         };
 
         &mut self.node_stages[index as usize]
-        // (self, index as usize)
     }
 
     fn index(coords: (isize, isize), size: usize) -> isize {
@@ -242,25 +245,71 @@ impl Map {
         Map::_offset(self.size)
     }
 
-    fn copy_node_stages(
-        from: &[usize],
-        to: &mut [usize],
-        old_size: usize,
-        new_size: usize
-    ) {
-        /* Not implemented */
+    fn copy_node_stages(from: &Map, to: &mut Map) {
+        let copy_start_offs = {
+            let from_offs = from.offset();
+            let to_offs = to.offset();
+            (to_offs.0 - from_offs.0, to_offs.1 - from_offs.1)
+        };
+        let copy_start_ind = Map::index(copy_start_offs, to.size) as usize;
+
+        for i in 0..from.size {
+            let from_row = {
+                let start_ind = from.size * i;
+                &from.node_stages[start_ind..start_ind + from.size]
+            };
+            let mut to_row = {
+                let start_ind = copy_start_ind + to.size * i;
+                &mut to.node_stages[start_ind..start_ind + from.size]
+            };
+
+            to_row.copy_from_slice(from_row);
+        }
     }
 
     fn grow(&self) -> Self {
         let size = self.size * MAP_GROW;
-        let mut node_stages = vec![0; size * size].into_boxed_slice();
+        let node_stages = vec![0; size * size].into_boxed_slice();
+        let mut new = Map { size, node_stages };
 
-        Map::copy_node_stages(&self.node_stages, &mut node_stages, self.size, size);
+        Map::copy_node_stages(&self, &mut new);
 
-        Map { size, node_stages }
+        // println!("{:?}", new);
+
+        new
     }
 }
 
+impl fmt::Debug for Map {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let counts = {
+            let mut counts_map: HashMap<usize, usize> = HashMap::new();
+
+            for &node in self.node_stages.iter() {
+                let mut num = counts_map.entry(node).or_insert(0);
+                *num += 1;
+            }
+
+            counts_map.into_iter()
+                .sorted().into_iter()
+                .map(|(k, v)| format!("{:?}: {:?}", k, v))
+                .join(", ")
+        };
+
+        writeln!(f, "Map size: {}, counts: {{ {} }}", self.size, counts)?;
+
+        if self.size < 150 {
+            for row in &self.node_stages.iter().chunks(self.size) {
+                let row_repr: String = row.map(|&s| s.to_string()).collect();
+                writeln!(f, "{}", row_repr)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
 struct Virus {
     pos: (isize, isize),
     vel: (isize, isize),
@@ -311,7 +360,7 @@ fn solve(
     input: &str,
     node_transitions: Vec<NodeState>,
     burst_count: u32
-) -> String {
+) -> u32 {
     use self::NodeState::*;
 
     let x_max = input.split('\n').next().unwrap().len();
@@ -339,10 +388,12 @@ fn solve(
             })
         });
 
-    let mut map = Map::new(16);
+    let mut map = Map::new(1);
 
     for (coords, stage) in map_start {
         *map.node_stage(coords) = stage;
+        // println!("{:?}", (coords, stage));
+        // println!("{:?}", map);
     }
 
     let mut virus = Virus {
@@ -354,15 +405,17 @@ fn solve(
 
     for _ in 0..burst_count {
         virus.burst(&mut map);
+        // println!("{:?}", virus);
+        // println!("{:?}", map);
     }
 
-    virus.infection_count.to_string()
+    virus.infection_count
 }
 
 pub fn part1(input: &str) -> String {
     use self::NodeState::*;
 
-    solve(input, vec![Clean, Infected], 10_000)
+    solve(input, vec![Clean, Infected], 10_000).to_string()
 }
 
 pub fn part2(input: &str) -> String {
@@ -373,5 +426,22 @@ pub fn part2(input: &str) -> String {
         Weakened,
         Infected,
         Flagged
-    ], 10_000_000)
+    ], 10_000_000).to_string()
+}
+
+#[test]
+fn test_day22() {
+    use self::NodeState::*;
+
+    let part1_transitions = || vec![Clean, Infected];
+    let part2_transitions = || vec![Clean, Weakened, Infected, Flagged];
+
+    let test_input ="..#
+#..
+...";
+    assert_eq!(solve(test_input, part1_transitions(), 7), 5);
+    assert_eq!(solve(test_input, part1_transitions(), 70), 41);
+    assert_eq!(solve(test_input, part1_transitions(), 10000), 5587);
+    assert_eq!(solve(test_input, part2_transitions(), 100), 26);
+    assert_eq!(solve(test_input, part2_transitions(), 10000000), 2511944);
 }
