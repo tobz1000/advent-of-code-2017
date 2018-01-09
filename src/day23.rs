@@ -15,7 +15,7 @@
 
 // If you run the program (your puzzle input), how many times is the mul instruction invoked?
 use std::str::FromStr;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug)]
 enum Instruction {
@@ -144,3 +144,126 @@ pub fn part1(input: &str) -> String {
 // The coprocessor's ultimate goal is to determine the final value left in register h once the program completes. Technically, if it had that... it wouldn't even need to run the program.
 
 // After setting register a to 1, if the program were to run to completion, what value would be left in register h?
+fn primes(max: usize) -> HashSet<usize> {
+    let mut seen = vec![false; max + 1];
+    let mut primes = HashSet::new();
+
+    for i in 2..=max {
+        if !seen[i] {
+            primes.insert(i);
+
+            for j in (i..=max).step_by(i) {
+                seen[j] = true;
+            }
+        }
+    }
+
+    primes
+}
+
+pub fn part2(_input: &str) -> String {
+    let from = 65 * 100 + 100_000;
+    let to = from + 17_000;
+    let step = 17;
+
+    let primes = primes(to);
+
+    let ans = (from..=to).step_by(step)
+        .filter(|i| !primes.contains(i))
+        .count();
+
+    ans.to_string()
+}
+
+// Manual factoring & refacoring:
+// ```rust
+// fn doit() -> i32 {
+//     let mut a = 1;
+//     let mut b = 0;
+//     let mut c = 0;
+//     let mut d = 0;
+//     let mut e = 0;
+//     let mut f = 0;
+//     let mut g = 0;
+//     let mut h = 0;
+
+//     b = 65;
+//     c = b;
+
+//     if a != 0 {
+//         b *= 100;
+//         b -= -100_000;
+//         c = b;
+//         c -= -17_000;
+//     }
+
+//     loop {
+//         f = 1;
+//         d = 2;
+
+//         loop {
+//             e = 2;
+
+//             loop {
+//                 g = d;
+//                 g *= e;
+//                 g -= b; 
+
+//                 if g == 0 {
+//                     f = 0;
+//                 }
+
+//                 e -= -1;
+//                 g = e;
+//                 g -= b;
+
+//                 if g == 0 { break; }
+//             }
+
+//             d -= -1;
+//             g = d;
+//             g -= b;
+
+//             if g == 0 { break; }
+//         }
+
+//         if f == 0 {
+//             h -= -1;
+//         }
+
+//         g = b;
+//         g -= c;
+
+//         if g == 0 {
+//             return h;
+//         }
+
+//         b -= -17;
+//     }
+// }
+
+// fn doit2() -> i32 {
+//     let do_start_thing = true;
+//     let mut b = 65;
+//     let mut c = 65;
+//     let mut h = 0;
+
+//     if do_start_thing {
+//         b = b * 100 + 100_000;
+//         c = b + 17_000;
+//     }
+
+//     for i in (b..c).step_by(17) {
+//         'a: for d in 2..i {
+//             for e in 2..i {
+//                 if d * e == i {
+//                     h += 1;
+//                     break 'a;
+//                 }
+//             }
+//         }
+//     }
+
+//     h
+// }
+// ```
