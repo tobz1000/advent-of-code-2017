@@ -40,10 +40,45 @@
 // Of these bridges, the strongest one is 0/1--10/1--9/10; it has a strength of 0+1 + 1+10 + 10+9 = 31.
 
 // What is the strength of the strongest bridge you can make with the components you have available?
-use std::cmp::max;
 
-fn walk(port: u32, comps: &[(u32, u32)]) -> u32 {
-    let mut max_subchain = 0;
+// --- Part Two ---
+
+// The bridge you've built isn't long enough; you can't jump the rest of the way.
+
+// In the example above, there are two longest bridges:
+
+//     0/2--2/2--2/3--3/4
+//     0/2--2/2--2/3--3/5
+
+// Of them, the one which uses the 3/5 component is stronger; its strength is 0+2 + 2+2 + 2+3 + 3+5 = 19.
+
+// What is the strength of the longest bridge you can make? If you can make multiple bridges of the longest length, pick the strongest one.
+use std::ops::Add;
+use std::cmp::Ordering;
+
+#[derive(Clone, Copy, Debug)]
+struct Subchain {
+    strength: u32,
+    length: u32,
+}
+
+impl Add for Subchain {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self {
+        Subchain {
+            strength: self.strength + rhs.strength,
+            length: self.length + rhs.length
+        }
+    }
+}
+
+fn walk(
+    port: u32,
+    comps: &[(u32, u32)],
+    cmp: fn(Subchain, Subchain) -> Ordering
+) -> Subchain {
+    let mut max_subchain = Subchain { strength: 0, length: 0 };
 
     for i in 0..comps.len() {
         let (a, b) = comps[i];
@@ -59,13 +94,19 @@ fn walk(port: u32, comps: &[(u32, u32)]) -> u32 {
         let mut next_comps = comps.to_vec();
         next_comps.swap_remove(i);
 
-        max_subchain = max(max_subchain, port + walk(next_port, &next_comps));
+        let mut next_subchain = walk(next_port, &next_comps, cmp);
+        next_subchain.strength += port;
+
+        max_subchain = match cmp(max_subchain, next_subchain) {
+            Ordering::Less => next_subchain,
+            _ => max_subchain
+        };
     }
 
-    port + max_subchain
+    max_subchain + Subchain { strength: port, length: 1 }
 }
 
-pub fn part1(input: &str) -> String {
+fn solve(input: &str, cmp: fn(Subchain, Subchain) -> Ordering) -> Subchain {
     let comps: Vec<(u32, u32)> = input.split('\n').map(|line| {
         let mut ports = line.split('/');
         let port1 = ports.next().unwrap().parse().unwrap();
@@ -73,7 +114,22 @@ pub fn part1(input: &str) -> String {
         (port1, port2)
     }).collect();
 
-    let ans = walk(0, &comps);
+    walk(0, &comps, cmp)
+}
 
+pub fn part1(input: &str) -> String {
+    let strongest = solve(input, |a, b| a.strength.cmp(&b.strength));
+    let ans = strongest.strength;
+    ans.to_string()
+}
+
+pub fn part2(input: &str) -> String {
+    let longest = solve(input, |a, b| {
+        match a.length.cmp(&b.length) {
+            Ordering::Equal => a.strength.cmp(&b.strength),
+            c @ _ => c
+        }
+    });
+    let ans = longest.strength;
     ans.to_string()
 }

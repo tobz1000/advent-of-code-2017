@@ -98,7 +98,7 @@ fn main() {
             (23, 1) => day23::part1,
             (23, 2) => day23::part2,
             (24, 1) => day24::part1,
-            // (24, 2) => day24::part2,
+            (24, 2) => day24::part2,
             // (25, 1) => day25::part1,
             // (25, 2) => day25::part2,
             (_, _) => panic!()
