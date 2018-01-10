@@ -237,15 +237,9 @@ impl AllocMap {
         let (x, y) = coords;
 
         if !(0..size as isize).contains(x) || !(0..size as isize).contains(y) {
-            return None;
-        }
-
-        let index = y * size as isize + x;
-
-        if (0..size * size).contains(index as usize) {
-            Some(index as usize)
-        } else {
             None
+        } else {
+            Some(y as usize * size + x as usize)
         }
     }
 
